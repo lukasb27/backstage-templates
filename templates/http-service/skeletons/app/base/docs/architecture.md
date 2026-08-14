@@ -22,6 +22,29 @@ not through the Ingress — that's real bug surface (the Service `selector` has 
 actually match the Deployment's pod labels), and it's the only path a database or a
 sibling API could be reached over too.
 
+```mermaid
+sequenceDiagram
+    participant Dev
+    participant This as This repo (PR branch)
+    participant GHCR
+    participant Env as ephemeral-env.yml (@v1)
+    participant Control as fermentation-station-argocd-control
+    participant Argo as Argo CD
+    participant K8s as Ephemeral namespace
+
+    Dev->>This: push
+    This->>GHCR: build + push app image, test image
+    This->>Env: call (needs: ci)
+    Env->>This: post "pending" status
+    Env-->>GHCR: poll until both images exist
+    Env->>Control: push rendered Application manifest (PR)
+    Control->>Argo: selfHeal picks up the change
+    Argo->>K8s: create namespace, deploy app
+    K8s-->>Argo: Deployment becomes healthy
+    Argo->>K8s: run integ-test Job (PostSync hook)
+    K8s->>This: post real pass/fail status + PR comment
+```
+
 ## Day 2
 
 This repo is yours from here — drift in application code, the Dockerfile, resource
