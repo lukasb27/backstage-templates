@@ -55,3 +55,16 @@ not this service's business:
    in `catalog-info.yaml` records what you were scaffolded from.
 2. **The ephemeral-env workflow** — referenced by version (`@v1`), not copied. Don't
    inline its logic here; if it needs to change, that change happens once, upstream.
+
+---
+
+**Note on the diagram above:** as of this writing it renders as a plain code block,
+not an actual diagram. `mkdocs.yml`'s `pymdownx.superfences` config correctly tags it
+as a `mermaid` fence on the Python/generation side, and the frontend package that's
+supposed to render it (`@backstage/plugin-techdocs-module-addons-contrib`, which
+ships a `Mermaid` addon) is confirmed loaded — it shows up in Backstage's own
+auto-detected-plugins list. Despite both pieces being present, the diagram still
+isn't rendering, and the exact cause (likely: the addon's extension needs explicit
+activation somewhere in the new frontend system's `app.extensions`, separate from the
+module merely being discovered) hasn't been tracked down yet. Left as a known gap
+rather than blocking on it.
