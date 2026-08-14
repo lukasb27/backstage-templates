@@ -166,9 +166,9 @@ spec:
       name: Notify
       action: notification:send
       input:
-        recipients:
-          type: entity
-          entityRef: ${{ parameters.owner }}
+        recipients: entity
+        entityRefs:
+          - ${{ parameters.owner }}
         title: 'Your service ${{ (parameters.repoUrl | parseRepoUrl).repo }} is ready'
         link: ${{ steps['publish'].output.remoteUrl }}
 
