@@ -1,0 +1,181 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: http-service
+  title: HTTP Service
+  description: >
+    A long-running HTTP service — Deployment + Service + Ingress + a health route +
+    black-box HTTP tests — with CI, Docker build, and per-PR ephemeral Argo CD
+    environments wired in from the start. Not for a CronJob or queue worker.
+  tags:
+    - recommended
+    - http-service
+spec:
+  owner: lukas
+  type: service
+
+  parameters:
+    - title: Repository
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+        description:
+          title: Description
+          type: string
+        visibility:
+          title: Repository visibility
+          type: string
+          enum:
+            - private
+            - public
+          default: private
+
+    - title: Ownership
+      required:
+        - owner
+      properties:
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the component, shown in the catalog.
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+              - User
+        system:
+          title: System
+          type: string
+          description: The system this component belongs to, if any.
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: System
+
+    - title: Language
+      required:
+        - language
+      properties:
+        language:
+          title: Language
+          type: string
+          enum:
+            - python
+          default: python
+          description: 'v1 supports Python (FastAPI) only.'
+
+  steps:
+    - id: fetch-app-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./skeletons/app/base
+        targetPath: ./app
+        # GitHub Actions workflow files use the exact same ${{ }} delimiter as
+        # Nunjucks for a completely unrelated purpose (github.actor,
+        # secrets.X, steps.y.outputs.z) — without this, fetch:template would
+        # try to render them as template expressions and mangle every one.
+        # None of these files need Nunjucks values; anything dynamic in them
+        # comes from GitHub Actions' own context (github.event.repository.name)
+        # at CI run time instead.
+        copyWithoutRender:
+          - ./.github/workflows/*.yml
+        values:
+          name: ${{ (parameters.repoUrl | parseRepoUrl).repo }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          system: ${{ parameters.system }}
+          destination: ${{ parameters.repoUrl }}
+          template_version: v1
+
+    - id: fetch-app-language
+      name: Fetch Language Skeleton
+      action: fetch:template
+      input:
+        url: ./skeletons/app/languages/${{ parameters.language }}
+        targetPath: ./app
+        copyWithoutRender:
+          - ./.github/workflows/*.yml
+        values:
+          name: ${{ (parameters.repoUrl | parseRepoUrl).repo }}
+
+    - id: fetch-control
+      name: Fetch Control Manifest
+      action: fetch:template
+      input:
+        url: ./skeletons/control
+        targetPath: ./control
+        values:
+          name: ${{ (parameters.repoUrl | parseRepoUrl).repo }}
+
+    - id: publish
+      name: Publish App Repository
+      action: publish:github
+      input:
+        repoUrl: ${{ parameters.repoUrl }}
+        sourcePath: ./app
+        description: ${{ parameters.description }}
+        repoVisibility: ${{ parameters.visibility }}
+        # Non-negotiable — see plan §1c. On this account (one maintainer, no
+        # GitHub Pro), the defaults (requiredApprovingReviewCount: 1,
+        # protectEnforceAdmins: true) make every repo permanently unmergeable:
+        # GitHub won't let you approve your own PR, and enforce_admins removes
+        # the only bypass. Do not "tidy up" these two lines.
+        protectDefaultBranch: true
+        requiredApprovingReviewCount: 0
+        protectEnforceAdmins: false
+        requiredStatusCheckContexts:
+          - ci
+          - docker
+        # Load-bearing for release-please (§11): COMMIT_OR_PR_TITLE (the
+        # publish:github default) uses the *commit* title instead of the PR
+        # title when a PR has exactly one commit, silently bypassing the PR
+        # title's Conventional Commit validation.
+        squashMergeCommitTitle: PR_TITLE
+        squashMergeCommitMessage: PR_BODY
+        allowSquashMerge: true
+        allowMergeCommit: false
+        allowRebaseMerge: false
+        deleteBranchOnMerge: true
+
+    - id: register-argo-app
+      name: Register Persistent Environment
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=lukasb27&repo=fermentation-station-argocd-control
+        branchName: add-${{ (parameters.repoUrl | parseRepoUrl).repo }}
+        title: 'feat: add ${{ (parameters.repoUrl | parseRepoUrl).repo }} Application'
+        description: Adds the persistent Argo CD Application for ${{ (parameters.repoUrl | parseRepoUrl).repo }}, scaffolded via the http-service template.
+        sourcePath: ./control
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+    - id: notify
+      name: Notify
+      action: notification:send
+      input:
+        recipients:
+          type: entity
+          entityRef: ${{ parameters.owner }}
+        title: 'Your service ${{ (parameters.repoUrl | parseRepoUrl).repo }} is ready'
+        link: ${{ steps['publish'].output.remoteUrl }}
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}

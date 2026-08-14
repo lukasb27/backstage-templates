@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  annotations:
+    github.com/project-slug: '${{ (values.destination | parseRepoUrl).owner }}/${{ values.name }}'
+    backstage.io/kubernetes-id: ${{ values.name }}
+    backstage.io/techdocs-ref: dir:.
+    goldenpath.lukasb27/template-version: '${{ values.template_version }}'
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+{%- if values.system %}
+  system: ${{ values.system }}
+{%- endif %}

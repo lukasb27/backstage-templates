@@ -1,0 +1,136 @@
+name: Ephemeral Environment
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: 'Base app name (before branch-slug prefixing) — usually github.event.repository.name'
+        required: true
+        type: string
+    secrets:
+      ARGO_CD_REPO_TOKEN:
+        required: true
+
+jobs:
+  ephemeral-environment-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: check out argo cd control repo
+        uses: actions/checkout@v4
+        with:
+          repository: lukasb27/fermentation-station-argocd-control
+          token: ${{ secrets.ARGO_CD_REPO_TOKEN }}
+          path: control
+
+      - name: Post pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state=pending \
+            -f context='kubernetes/integration-tests' \
+            -f description='Waiting for the ephemeral environment to become ready'
+
+      - name: Wait for Docker images to be pushed
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          FOUND=1
+          for IMAGE in "${{ inputs.app_name }}" "${{ inputs.app_name }}-integ-tests"; do
+            echo "Waiting for ghcr.io/lukasb27/${IMAGE}:${BRANCH}..."
+            OK=0
+            for i in $(seq 1 40); do
+              if docker manifest inspect "ghcr.io/lukasb27/${IMAGE}:${BRANCH}" > /dev/null 2>&1; then
+                echo "Found ghcr.io/lukasb27/${IMAGE}:${BRANCH}."
+                OK=1
+                break
+              fi
+              echo "Attempt ${i}/40: not available yet. Retrying in 15s..."
+              sleep 15
+            done
+            if [ "${OK}" -ne 1 ]; then
+              FOUND=0
+            fi
+          done
+          if [ "${FOUND}" -ne 1 ]; then
+            echo "Timed out waiting for images to be pushed." >&2
+            exit 1
+          fi
+
+      - name: Render Argo CD Application manifest
+        env:
+          APP_NAME: ${{ inputs.app_name }}
+          BRANCH: ${{ github.head_ref }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO_SLUG: ${{ github.repository }}
+        run: |
+          BRANCH_SLUG=$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9-')
+          FULL_NAME="${APP_NAME}-${BRANCH_SLUG}"
+          FULL_NAME="${FULL_NAME:0:63}"
+          echo "FULL_NAME=${FULL_NAME}" >> "$GITHUB_ENV"
+
+          cat > "${FULL_NAME}.yaml" <<EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: ${FULL_NAME}
+            namespace: argocd
+            finalizers:
+              - resources-finalizer.argocd.argoproj.io
+          spec:
+            project: default
+            source:
+              repoURL: https://github.com/${REPO_SLUG}.git
+              targetRevision: ${BRANCH}
+              path: k8s
+              kustomize:
+                images:
+                  - ghcr.io/lukasb27/${APP_NAME}=ghcr.io/lukasb27/${APP_NAME}:${BRANCH}
+                  - ghcr.io/lukasb27/${APP_NAME}-integ-tests=ghcr.io/lukasb27/${APP_NAME}-integ-tests:${BRANCH}
+                commonAnnotations:
+                  prNumber: "${PR_NUMBER}"
+                  commitSha: ${SHA}
+                  repoSlug: ${REPO_SLUG}
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: ${FULL_NAME}
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+              syncOptions:
+                - CreateNamespace=true
+          EOF
+
+      - name: Copy manifest to control repo and push
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          cp "${FULL_NAME}.yaml" "control/apps/${FULL_NAME}.yaml"
+          cd control
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "apps/${FULL_NAME}.yaml"
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add ArgoCD application for PR ${PR_NUMBER} (Branch: ${BRANCH_NAME})"
+            git push
+          fi
+
+      - name: Fail the pending status on timeout
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state=failure \
+            -f context='kubernetes/integration-tests' \
+            -f description='Environment never became ready'

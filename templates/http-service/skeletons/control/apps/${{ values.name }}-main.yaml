@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.name }}-main
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/lukasb27/${{ values.name }}.git
+    targetRevision: main
+    path: k8s
+    kustomize:
+      images:
+        - ghcr.io/lukasb27/${{ values.name }}=ghcr.io/lukasb27/${{ values.name }}:main
+        - ghcr.io/lukasb27/${{ values.name }}-integ-tests=ghcr.io/lukasb27/${{ values.name }}-integ-tests:latest
+      commonAnnotations:
+        prNumber: ""
+        commitSha: main
+        repoSlug: lukasb27/${{ values.name }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${{ values.name }}-main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

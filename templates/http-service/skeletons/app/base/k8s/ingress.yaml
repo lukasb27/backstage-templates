@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${{ values.name }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: ${{ values.name }}.example
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ${{ values.name }}-service
+            port:
+              number: 8000
+  tls:
+  - hosts:
+    - ${{ values.name }}.example
+    # Needs a cert for this exact hostname before HTTPS works — see the README's
+    # mkcert step. A wildcard cert for *.example covers every future service at
+    # once; a per-host cert (mkcert ${{ values.name }}.example, matching how
+    # backstage-tls was set up) also works but repeats per service.
+    secretName: ${{ values.name }}-tls

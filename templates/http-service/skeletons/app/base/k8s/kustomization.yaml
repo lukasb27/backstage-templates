@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - job.yaml
+  - resourcequota.yaml
+
+images:
+  - name: ghcr.io/lukasb27/${{ values.name }}
+    newName: ghcr.io/lukasb27/${{ values.name }}
+    newTag: main
+  - name: ghcr.io/lukasb27/${{ values.name }}-integ-tests
+    newName: ghcr.io/lukasb27/${{ values.name }}-integ-tests
+    newTag: latest

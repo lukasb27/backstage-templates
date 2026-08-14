@@ -1,0 +1,201 @@
+name: CI
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  validate-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          regex='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: .+'
+          if [[ ! "$PR_TITLE" =~ $regex ]]; then
+            echo "PR title must follow Conventional Commits."
+            echo "Received: $PR_TITLE"
+            exit 1
+          fi
+
+      - name: Validate commit subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          regex='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: .+'
+          while IFS= read -r subject; do
+            if [[ ! "$subject" =~ $regex ]]; then
+              echo "Commit subject is not a Conventional Commit: $subject"
+              exit 1
+            fi
+          done < <(git log --no-merges --format=%s "${BASE_SHA}..${HEAD_SHA}")
+
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - uses: actions/cache@v4
+        with:
+          path: ./.venv
+          key: venv-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --with dev --no-interaction
+
+      - name: Run unit tests
+        id: unit_tests
+        run: |
+          set +e
+          poetry run pytest -m "not e2e" \
+            --junitxml=pytest-unit.xml \
+            > pytest-unit-output.txt 2>&1
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          cat pytest-unit-output.txt
+
+      - name: Run e2e tests
+        id: e2e_tests
+        run: |
+          set +e
+          poetry run pytest -m e2e \
+            --junitxml=pytest-e2e.xml \
+            > pytest-e2e-output.txt 2>&1
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          cat pytest-e2e-output.txt
+
+      - name: Run flake8
+        id: flake8
+        run: |
+          set +e
+          poetry run flake8 app/ tests/ > flake8-output.txt 2>&1
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          cat flake8-output.txt
+
+      - name: Build CI summary
+        if: always()
+        run: |
+          python <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          def status_text(exit_code: str) -> str:
+              return "Passed" if exit_code == "0" else "Failed"
+
+          def counts_from(path: str) -> dict:
+              p = Path(path)
+              if not p.exists():
+                  return {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+              root = ET.parse(p).getroot()
+              suites = [root] if root.tag == "testsuite" else root.findall("testsuite")
+              return {
+                  "tests": sum(int(s.attrib.get("tests", 0)) for s in suites),
+                  "failures": sum(int(s.attrib.get("failures", 0)) for s in suites),
+                  "errors": sum(int(s.attrib.get("errors", 0)) for s in suites),
+                  "skipped": sum(int(s.attrib.get("skipped", 0)) for s in suites),
+              }
+
+          unit = counts_from("pytest-unit.xml")
+          e2e = counts_from("pytest-e2e.xml")
+          flake8_output = Path("flake8-output.txt").read_text().strip()
+
+          lines = [
+              "<!-- ci-summary -->",
+              "## CI Results",
+              "",
+              f"- Unit tests: **{status_text(os.environ['UNIT_EXIT'])}**",
+              f"- E2E tests: **{status_text(os.environ['E2E_EXIT'])}**",
+              f"- Flake8: **{status_text(os.environ['FLAKE8_EXIT'])}**",
+              "",
+              "| Suite | Tests | Failures | Errors | Skipped |",
+              "| --- | --- | --- | --- | --- |",
+              f"| Unit | {unit['tests']} | {unit['failures']} | {unit['errors']} | {unit['skipped']} |",
+              f"| E2E | {e2e['tests']} | {e2e['failures']} | {e2e['errors']} | {e2e['skipped']} |",
+              "",
+          ]
+          if flake8_output:
+              lines += ["### Lint", "```text", flake8_output[:6000], "```"]
+          else:
+              lines.append("`flake8` passed with no output.")
+
+          summary = "\n".join(lines) + "\n"
+          Path("ci-summary.md").write_text(summary)
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text(summary)
+          PY
+        env:
+          UNIT_EXIT: ${{ steps.unit_tests.outputs.exit_code }}
+          E2E_EXIT: ${{ steps.e2e_tests.outputs.exit_code }}
+          FLAKE8_EXIT: ${{ steps.flake8.outputs.exit_code }}
+
+      - name: Upload CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-results
+          path: |
+            ci-summary.md
+            pytest-unit.xml
+            pytest-e2e.xml
+            pytest-unit-output.txt
+            pytest-e2e-output.txt
+            flake8-output.txt
+
+      - name: Comment CI summary on pull request
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const body = fs.readFileSync("ci-summary.md", "utf8");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const marker = "<!-- ci-summary -->";
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find((c) => c.user.type === "Bot" && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Enforce quality gates
+        if: always()
+        run: |
+          [ "${{ steps.unit_tests.outputs.exit_code }}" = "0" ] || { echo "Unit tests failed."; exit 1; }
+          [ "${{ steps.e2e_tests.outputs.exit_code }}" = "0" ] || { echo "E2E tests failed."; exit 1; }
+          [ "${{ steps.flake8.outputs.exit_code }}" = "0" ] || { echo "Flake8 failed."; exit 1; }
+
+  ephemeral-environment-setup:
+    needs: ci
+    uses: lukasb27/backstage-templates/.github/workflows/ephemeral-env.yml@v1
+    with:
+      app_name: ${{ github.event.repository.name }}
+    secrets: inherit

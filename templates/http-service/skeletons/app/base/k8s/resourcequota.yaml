@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ${{ values.name }}-quota
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi
+    pods: "10"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ${{ values.name }}-limits
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi

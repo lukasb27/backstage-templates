@@ -1,0 +1,37 @@
+name: Cleanup Ephemeral Environment
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  delete-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ArgoCD control repo
+        uses: actions/checkout@v4
+        with:
+          repository: lukasb27/fermentation-station-argocd-control
+          token: ${{ secrets.ARGO_CD_REPO_TOKEN }}
+
+      - name: Remove YAML file
+        env:
+          APP_NAME: ${{ github.event.repository.name }}
+          BRANCH_NAME: ${{ github.head_ref }}
+        run: |
+          # Must match the slugification in ephemeral-env.yml exactly, or this
+          # silently no-ops (the -f check below swallows any mismatch).
+          BRANCH_SLUG=$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]' | tr '/' '-' | tr -cd 'a-z0-9-')
+          FULL_NAME="${APP_NAME}-${BRANCH_SLUG}"
+          FULL_NAME="${FULL_NAME:0:63}"
+          FILE_PATH="apps/${FULL_NAME}.yaml"
+          if [ -f "$FILE_PATH" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            rm "$FILE_PATH"
+            git add "$FILE_PATH"
+            git commit -m "Cleanup: Remove ArgoCD app for closed PR (Branch: ${FULL_NAME})"
+            git push
+          else
+            echo "File $FILE_PATH not found, nothing to clean up."
+          fi

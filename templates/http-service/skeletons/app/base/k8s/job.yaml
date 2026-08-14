@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: integ-tests
+  annotations:
+    # PostSync (not Sync) so this only runs once the Deployment is actually
+    # rolled out and healthy — Sync hooks run concurrently with normal
+    # resources, which can race the integ tests against a pod that isn't
+    # ready yet.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      containers:
+      - name: integ-test
+        image: ghcr.io/lukasb27/${{ values.name }}-integ-tests:latest
+        imagePullPolicy: Always
+        env:
+        - name: TARGET_HOST
+          value: ${{ values.name }}-service
+        - name: PR_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['prNumber']
+        - name: COMMIT_SHA
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['commitSha']
+        - name: REPO_SLUG
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['repoSlug']
+      restartPolicy: Never
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 300
