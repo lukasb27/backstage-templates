@@ -85,7 +85,7 @@ spec:
         # None of these files need Nunjucks values; anything dynamic in them
         # comes from GitHub Actions' own context (github.event.repository.name)
         # at CI run time instead.
-        copyWithoutRender:
+        copyWithoutTemplating:
           - ./.github/workflows/*.yml
         values:
           name: ${{ (parameters.repoUrl | parseRepoUrl).repo }}
@@ -101,7 +101,7 @@ spec:
       input:
         url: ./skeletons/app/languages/${{ parameters.language }}
         targetPath: ./app
-        copyWithoutRender:
+        copyWithoutTemplating:
           - ./.github/workflows/*.yml
         values:
           name: ${{ (parameters.repoUrl | parseRepoUrl).repo }}
