@@ -42,7 +42,10 @@ markers = [
 ]
 
 [tool.coverage.run]
-omit = ["tests/*"]
+# dependencies.py is a worked example, not wired into any route by default —
+# see its docstring. Excluded so a fresh scaffold's first CI run isn't red
+# before any real code has been written.
+omit = ["tests/*", "app/dependencies.py"]
 
 [tool.isort]
 profile = "black"
