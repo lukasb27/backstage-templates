@@ -16,6 +16,10 @@ spec:
       - name: integ-test
         image: ghcr.io/lukasb27/${{ values.name }}-integ-tests:latest
         imagePullPolicy: Always
+        volumeMounts:
+        - name: token-volume
+          mountPath: /etc/github
+          readOnly: true
         env:
         - name: TARGET_HOST
           value: ${{ values.name }}-service
@@ -31,6 +35,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.annotations['repoSlug']
+      volumes:
+      - name: token-volume
+        secret:
+          secretName: github-pr-token
       restartPolicy: Never
   backoffLimit: 4
   ttlSecondsAfterFinished: 300
