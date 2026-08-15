@@ -1,0 +1,13 @@
+site_name: 'backstage-templates'
+site_description: 'Backstage Software Templates for the golden path'
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+plugins:
+  - techdocs-core
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

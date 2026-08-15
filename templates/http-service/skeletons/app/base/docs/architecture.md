@@ -10,40 +10,11 @@
 
 ## Request path
 
-A push to a PR branch builds and pushes two images to GHCR (the app image and a
-test image), then asks the referenced `ephemeral-env.yml` workflow to render and push
-an Argo CD `Application` manifest into the control repo. Argo CD picks that up,
-creates a namespace, deploys the app, and runs the integration-test Job as a
-`PostSync` hook — only once the Deployment is actually healthy, not racing its
-startup.
-
-The integration-test Job talks to the app over its in-cluster Service DNS name,
-not through the Ingress — that's real bug surface (the Service `selector` has to
-actually match the Deployment's pod labels), and it's the only path a database or a
-sibling API could be reached over too.
-
-```mermaid
-sequenceDiagram
-    participant Dev
-    participant This as This repo (PR branch)
-    participant GHCR
-    participant Env as ephemeral-env.yml (@v1)
-    participant Control as fermentation-station-argocd-control
-    participant Argo as Argo CD
-    participant K8s as Ephemeral namespace
-
-    Dev->>This: push
-    This->>GHCR: build + push app image, test image
-    This->>Env: call (needs: ci)
-    Env->>This: post "pending" status
-    Env-->>GHCR: poll until both images exist
-    Env->>Control: push rendered Application manifest (PR)
-    Control->>Argo: selfHeal picks up the change
-    Argo->>K8s: create namespace, deploy app
-    K8s-->>Argo: Deployment becomes healthy
-    Argo->>K8s: run integ-test Job (PostSync hook)
-    K8s->>This: post real pass/fail status + PR comment
-```
+See [backstage-templates' own architecture docs](https://github.com/lukasb27/backstage-templates/blob/main/docs/architecture.md)
+for the full request-path diagram and explanation — what happens on every push,
+end to end. It lives there rather than here because the flow is identical for
+every service this template produces; documenting it once means it can't drift
+out of sync with reality one scaffolded repo at a time.
 
 ## Day 2
 
@@ -55,16 +26,3 @@ not this service's business:
    in `catalog-info.yaml` records what you were scaffolded from.
 2. **The ephemeral-env workflow** — referenced by version (`@v1`), not copied. Don't
    inline its logic here; if it needs to change, that change happens once, upstream.
-
----
-
-**Note on the diagram above:** as of this writing it renders as a plain code block,
-not an actual diagram. `mkdocs.yml`'s `pymdownx.superfences` config correctly tags it
-as a `mermaid` fence on the Python/generation side, and the frontend package that's
-supposed to render it (`@backstage/plugin-techdocs-module-addons-contrib`, which
-ships a `Mermaid` addon) is confirmed loaded — it shows up in Backstage's own
-auto-detected-plugins list. Despite both pieces being present, the diagram still
-isn't rendering, and the exact cause (likely: the addon's extension needs explicit
-activation somewhere in the new frontend system's `app.extensions`, separate from the
-module merely being discovered) hasn't been tracked down yet. Left as a known gap
-rather than blocking on it.
