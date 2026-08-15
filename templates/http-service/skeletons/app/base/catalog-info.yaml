@@ -2,7 +2,11 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: ${{ values.name }}
-  description: ${{ values.description }}
+  # Quoted + defaulted: an unquoted, blank value here renders as YAML null,
+  # which fails catalog registration ("Malformed envelope, /metadata/description
+  # must be string") — description is an optional parameter, so a blank
+  # submission is a normal, expected case, not user error.
+  description: '${{ values.description | default("") }}'
   annotations:
     github.com/project-slug: '${{ (values.destination | parseRepoUrl).owner }}/${{ values.name }}'
     backstage.io/kubernetes-id: ${{ values.name }}
