@@ -105,6 +105,8 @@ spec:
           - .github/workflows/*.yml
         values:
           name: ${{ (parameters.repoUrl | parseRepoUrl).repo }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
 
     - id: fetch-control
       name: Fetch Control Manifest
