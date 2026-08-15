@@ -38,10 +38,27 @@ Two separate rationales were considered for doing so:
 
 Reject both rationales for now, and fix only the crash.
 
-**Security rationale rejected:** only the repository owner can open PRs against these repositories — there
-is no external-contributor or fork-PR threat model in play. A credential sitting in a namespace that only
-ever runs code the owner themselves pushed is not the same risk as one sitting in a namespace running an
-arbitrary contributor's unreviewed code. The security case Notifications would address does not apply here.
+**Security rationale rejected — but only after actually closing the gap, not by assuming it away.** The
+first pass at this reasoning claimed "only the repository owner can open PRs against these repositories,"
+treating that as a given. It wasn't: all five repositories involved
+(`backstage-templates`, `application-argocd-control`, `homelab-argocd-control`,
+`fermentation-station-agent`, `backstage-app`) were **public**, with no branch protection on `main`, and
+GitHub's REST API confirmed each carried `"pull_request_creation_policy": "all"` — meaning, until this ADR,
+any GitHub account could fork any of them and open a PR, independent of collaborator lists (collaborator
+access governs push/merge rights, not who can open a PR from a fork; this is standard GitHub behaviour, not
+a per-repo bug). `fermentation-station-agent` was already exposed to this in production, unrelated to
+tonight's changes — its own `github-pr-token` mount predates this investigation.
+
+The fix: GitHub added a real, first-party control for exactly this
+([`github/roadmap#1232`](https://github.com/github/roadmap/issues/1232), GA, available on the Free SKU).
+The REST API's ["Update a repository"](https://docs.github.com/en/rest/repos/repos?apiVersion=2022-11-28#update-a-repository)
+endpoint exposes `pull_request_creation_policy`, accepting `all` (the previous, default state) or
+`collaborators_only`. All five repositories above were switched to `collaborators_only` as part of this ADR
+— confirmed via the API response echoing the new value back on each. With no collaborators on any of these
+repositories besides the owner, the original claim is now actually true, enforced by GitHub itself rather
+than assumed. **This is what the security rationale actually needed** — not routing the gate signal through
+Notifications, which would have left the fork-PR path itself wide open while only changing which credential
+sits in the namespace.
 
 **Reliability rationale considered and set aside, not dismissed:** it is a real argument — the in-cluster
 reporting script has produced several distinct bugs this session alone (a hardcoded commit SHA, a
@@ -59,19 +76,26 @@ concrete problem. Not worth the added moving parts tonight.
 
 **Positive:** no new cluster-level configuration surface, no new manual prerequisite to document and keep
 working. The fix that actually mattered (the crash) is small, self-contained, and matches an
-already-proven pattern instead of introducing a new one.
+already-proven pattern instead of introducing a new one. The fork-PR gap that motivated the security
+rationale in the first place is genuinely closed — by GitHub itself enforcing it, not by an assumption about
+who happens to have push access.
 
 **Negative / debt:** the merge gate remains coupled to the in-cluster script's ability to complete an
 outbound HTTP call after tests finish running. A future bug in that script — or a future outage that kills
 the pod in the wrong window — can still hang a required check at `pending` indefinitely, exactly the failure
-mode described above. This is accepted, not solved.
+mode described above. This is accepted, not solved. Also, `pull_request_creation_policy` is a live repo
+setting, not something tracked in git anywhere — if any of these five repos is ever recreated (rename,
+transfer, disaster recovery), this needs to be reapplied by hand; it isn't part of `publish:github`'s
+scaffolding step yet, so newly scaffolded services don't get it automatically either.
 
 ## Revisit Trigger
 
-Revisit if either rationale becomes concretely true rather than theoretical:
-
-- **Security:** if this repository (or any repository using this template) ever grants PR access to anyone
-  beyond the owner — a collaborator, an open-source contributor, a fork-based workflow.
+- **Security:** if `collaborators_only` is ever found unset on one of these repos (e.g. after a repo
+  recreation), or if a newly scaffolded golden-path service is found still on the default `all` policy —
+  reapply it. Longer-term, add `pull_request_creation_policy` (or an equivalent scaffolder action) to
+  `template.yaml`'s `publish` step so every future scaffolded service gets this by default instead of
+  needing a manual follow-up.
 - **Reliability:** if the in-cluster reporting script produces another bug that actually hangs a required
   check in production (not just a wrong count or a bad log line, but a merge genuinely blocked), the
-  reliability case moves from "real but not urgent" to "worth the cluster-config cost."
+  reliability case for Argo CD Notifications moves from "real but not urgent" to "worth the cluster-config
+  cost."
