@@ -49,12 +49,3 @@ sequenceDiagram
     Argo->>K8s: run integ-test Job (PostSync hook)
     K8s->>Svc: post real pass/fail status + PR comment
 ```
-
-## Why this lives here, not in every scaffolded service
-
-This flow is identical for every service the `http-service` template produces.
-Documenting it once here, rather than copying it into each generated
-`docs/architecture.md`, means it can't drift out of sync with reality one
-scaffolded repo at a time as the flow evolves. Each scaffolded service's own docs
-link back here for the platform mechanics, and cover only what's actually
-specific to that service.
