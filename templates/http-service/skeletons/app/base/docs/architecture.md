@@ -5,7 +5,7 @@
 | Repo | Holds |
 | --- | --- |
 | This repo | Application code, Dockerfile, `k8s/` base, CI |
-| [fermentation-station-argocd-control](https://github.com/lukasb27/fermentation-station-argocd-control) | The persistent Argo CD `Application` for `main`, and one per open PR |
+| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | The persistent Argo CD `Application` for `main`, and one per open PR |
 | [backstage-templates](https://github.com/lukasb27/backstage-templates) | The template this repo was scaffolded from, and the `ephemeral-env.yml` reusable workflow this repo's CI calls by version (`@v1`) |
 
 ## Request path
