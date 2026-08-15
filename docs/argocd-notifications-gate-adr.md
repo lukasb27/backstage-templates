@@ -83,18 +83,27 @@ who happens to have push access.
 **Negative / debt:** the merge gate remains coupled to the in-cluster script's ability to complete an
 outbound HTTP call after tests finish running. A future bug in that script — or a future outage that kills
 the pod in the wrong window — can still hang a required check at `pending` indefinitely, exactly the failure
-mode described above. This is accepted, not solved. Also, `pull_request_creation_policy` is a live repo
-setting, not something tracked in git anywhere — if any of these five repos is ever recreated (rename,
-transfer, disaster recovery), this needs to be reapplied by hand; it isn't part of `publish:github`'s
-scaffolding step yet, so newly scaffolded services don't get it automatically either.
+mode described above. This is accepted, not solved.
+
+For the five repos patched directly, `pull_request_creation_policy` is a live setting, not something
+tracked in git — if any of them is ever recreated (rename, transfer, disaster recovery), it needs reapplying
+by hand. For every *future* scaffolded service, this is no longer manual: no stock scaffolder action exists
+for this (there is no generic HTTP/settings action installed in this Backstage instance, and building a
+custom one repeats the reasoning already rejected for `ANTHROPIC_API_KEY` distribution — the only bespoke
+backend code, requiring an image rebuild for every change). Instead,
+[`bootstrap-repo-settings.yml`](https://github.com/lukasb27/backstage-templates/blob/main/templates/http-service/skeletons/app/base/.github/workflows/bootstrap-repo-settings.yml)
+ships in every scaffolded service's skeleton and self-applies the setting on the first push to `main` (the
+repo's own `github.token`, granted `administration: write`, patching its own settings — no new secret).
+Re-runs on every subsequent push to `main` too, so it self-heals if the setting is ever reset by hand.
 
 ## Revisit Trigger
 
-- **Security:** if `collaborators_only` is ever found unset on one of these repos (e.g. after a repo
-  recreation), or if a newly scaffolded golden-path service is found still on the default `all` policy —
-  reapply it. Longer-term, add `pull_request_creation_policy` (or an equivalent scaffolder action) to
-  `template.yaml`'s `publish` step so every future scaffolded service gets this by default instead of
-  needing a manual follow-up.
+- **Security:** if `collaborators_only` is ever found unset on one of the five repos patched directly (e.g.
+  after a repo recreation) — reapply it by hand; `bootstrap-repo-settings.yml` only covers newly scaffolded
+  services, not these pre-existing repos. If a newly scaffolded service is ever found with the policy back on
+  `all`, check whether `administration: write` actually behaves as expected for `GITHUB_TOKEN` on this
+  account tier — that specific permission scope's behavior here was not independently verified beyond writing
+  the workflow, only reasoned from GitHub's documented permission model.
 - **Reliability:** if the in-cluster reporting script produces another bug that actually hangs a required
   check in production (not just a wrong count or a bad log line, but a merge genuinely blocked), the
   reliability case for Argo CD Notifications moves from "real but not urgent" to "worth the cluster-config
