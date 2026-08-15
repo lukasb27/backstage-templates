@@ -4,6 +4,8 @@ nav:
   - Home: index.md
   - Architecture: architecture.md
   - Platform Overview: platform-overview.md
+  - ADRs:
+      - Argo CD Notifications for the Integration-Test Gate: argocd-notifications-gate-adr.md
 plugins:
   - techdocs-core
 markdown_extensions:
