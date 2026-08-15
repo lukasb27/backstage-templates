@@ -125,17 +125,11 @@ spec:
         sourcePath: ./app
         description: ${{ parameters.description }}
         repoVisibility: ${{ parameters.visibility }}
-        # Non-negotiable — see plan §1c. On this account (one maintainer, no
-        # GitHub Pro), the defaults (requiredApprovingReviewCount: 1,
-        # protectEnforceAdmins: true) make every repo permanently unmergeable:
-        # GitHub won't let you approve your own PR, and enforce_admins removes
-        # the only bypass. Do not "tidy up" these two lines.
-        protectDefaultBranch: true
-        requiredApprovingReviewCount: 0
-        protectEnforceAdmins: false
-        requiredStatusCheckContexts:
-          - ci
-          - docker
+        # Branch protection is deliberately NOT set here (protectDefaultBranch:
+        # false, the default) — publish:github's own attempt fires a single
+        # try, ~1.6s after the push, with no retry, racing GitHub's eventual
+        # consistency for a just-created branch. See the wait + explicit
+        # github:branch-protection:create step below instead.
         # Load-bearing for release-please (§11): COMMIT_OR_PR_TITLE (the
         # publish:github default) uses the *commit* title instead of the PR
         # title when a PR has exactly one commit, silently bypassing the PR
@@ -146,6 +140,28 @@ spec:
         allowMergeCommit: false
         allowRebaseMerge: false
         deleteBranchOnMerge: true
+
+    - id: wait-for-branch
+      name: Wait for Branch to Settle
+      action: debug:wait
+      input:
+        seconds: 8
+
+    - id: protect-branch
+      name: Protect Default Branch
+      action: github:branch-protection:create
+      input:
+        repoUrl: ${{ parameters.repoUrl }}
+        # Non-negotiable — see plan §1c. On this account (one maintainer, no
+        # GitHub Pro), the defaults (requiredApprovingReviewCount: 1,
+        # enforceAdmins: true) make every repo permanently unmergeable: GitHub
+        # won't let you approve your own PR, and enforceAdmins removes the
+        # only bypass. Do not "tidy up" these two lines.
+        enforceAdmins: false
+        requiredApprovingReviewCount: 0
+        requiredStatusCheckContexts:
+          - ci
+          - docker
 
     - id: register-argo-app
       name: Register Persistent Environment
