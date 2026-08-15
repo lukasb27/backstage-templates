@@ -1,0 +1,27 @@
+name: Bootstrap Repo Settings
+
+# Runs on every push to main, not just once at scaffold time — cheap and
+# idempotent (re-PATCHing an already-correct value is a no-op), and it means
+# the setting self-heals if it's ever accidentally reset rather than silently
+# staying wrong. See docs/argocd-notifications-gate-adr.md for why this
+# exists: pull_request_creation_policy defaults to "all" on repo creation,
+# which lets anyone fork this repo and open a PR against it — and PRs are
+# what trigger the ephemeral-environment pipeline, including a Job that
+# mounts a GitHub token.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  administration: write
+
+jobs:
+  restrict-pr-creation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restrict PR creation to collaborators only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}" \
+            -f pull_request_creation_policy=collaborators_only
