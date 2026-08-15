@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: backstage-templates
+  description: Backstage Software Templates for the golden path, and their platform architecture docs
+  annotations:
+    github.com/project-slug: 'lukasb27/backstage-templates'
+    backstage.io/techdocs-ref: dir:.
+spec:
+  type: documentation
+  lifecycle: production
+  owner: lukas
