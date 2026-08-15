@@ -5,7 +5,7 @@ FROM python:3.13-slim as python-base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    POETRY_VERSION=2.2.1 \
+    POETRY_VERSION=2.3.1 \
     POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     PYSETUP_PATH="/opt/pysetup" \
