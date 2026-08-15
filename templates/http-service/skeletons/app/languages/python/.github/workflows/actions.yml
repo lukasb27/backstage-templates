@@ -69,7 +69,7 @@ jobs:
           key: venv-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
-        run: poetry install --with dev --no-interaction
+        run: poetry install --no-root --with dev --no-interaction
 
       - name: Run unit tests
         id: unit_tests
