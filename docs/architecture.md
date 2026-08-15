@@ -27,7 +27,36 @@ not through the Ingress — that's real bug surface (the Service `selector` has 
 actually match the Deployment's pod labels), and it's the only path a database or
 a sibling API could be reached over too.
 
+The `%%{init: ...}%%` block below forces a specific dark theme rather than
+relying on the rendering addon's light/dark auto-detection, which renders this
+diagram's text unreadable (dark-on-dark) in this instance regardless of the
+Backstage UI's own theme.
+
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#1e1e1e",
+    "primaryColor": "#2d3748",
+    "primaryTextColor": "#f7fafc",
+    "primaryBorderColor": "#718096",
+    "lineColor": "#cbd5e0",
+    "textColor": "#f7fafc",
+    "actorTextColor": "#f7fafc",
+    "actorLineColor": "#cbd5e0",
+    "signalColor": "#f7fafc",
+    "signalTextColor": "#f7fafc",
+    "labelBoxBkgColor": "#2d3748",
+    "labelBoxBorderColor": "#718096",
+    "labelTextColor": "#f7fafc",
+    "loopTextColor": "#f7fafc",
+    "noteBkgColor": "#4a5568",
+    "noteTextColor": "#f7fafc",
+    "noteBorderColor": "#718096",
+    "activationBkgColor": "#4a5568",
+    "activationBorderColor": "#718096"
+  }
+}}%%
 sequenceDiagram
     participant Dev
     participant Svc as Scaffolded service (PR branch)
