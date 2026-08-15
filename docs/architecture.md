@@ -9,7 +9,7 @@ happens on every push, and which repo owns which piece.
 | Repo | Holds |
 | --- | --- |
 | A scaffolded service (this template's output) | Application code, Dockerfile, `k8s/` base, CI |
-| [fermentation-station-argocd-control](https://github.com/lukasb27/fermentation-station-argocd-control) | The persistent Argo CD `Application` for `main`, and one per open PR, for every scaffolded service |
+| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | The persistent Argo CD `Application` for `main`, and one per open PR, for every scaffolded service |
 | This repo (`backstage-templates`) | The `http-service` template itself, and the `ephemeral-env.yml` reusable workflow every scaffolded service's CI calls by version (`@v1`) |
 
 ## Request path
@@ -62,7 +62,7 @@ sequenceDiagram
     participant Svc as Scaffolded service (PR branch)
     participant GHCR
     participant Env as ephemeral-env.yml (@v1, this repo)
-    participant Control as fermentation-station-argocd-control
+    participant Control as application-argocd-control
     participant Argo as Argo CD
     participant K8s as Ephemeral namespace
 

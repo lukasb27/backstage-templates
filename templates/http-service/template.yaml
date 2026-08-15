@@ -167,7 +167,7 @@ spec:
       name: Register Persistent Environment
       action: publish:github:pull-request
       input:
-        repoUrl: github.com?owner=lukasb27&repo=fermentation-station-argocd-control
+        repoUrl: github.com?owner=lukasb27&repo=application-argocd-control
         branchName: add-${{ (parameters.repoUrl | parseRepoUrl).repo }}
         title: 'feat: add ${{ (parameters.repoUrl | parseRepoUrl).repo }} Application'
         description: Adds the persistent Argo CD Application for ${{ (parameters.repoUrl | parseRepoUrl).repo }}, scaffolded via the http-service template.

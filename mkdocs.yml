@@ -3,6 +3,7 @@ site_description: 'Backstage Software Templates for the golden path'
 nav:
   - Home: index.md
   - Architecture: architecture.md
+  - Platform Overview: platform-overview.md
 plugins:
   - techdocs-core
 markdown_extensions:

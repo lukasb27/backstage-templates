@@ -11,7 +11,7 @@ jobs:
       - name: Checkout ArgoCD control repo
         uses: actions/checkout@v4
         with:
-          repository: lukasb27/fermentation-station-argocd-control
+          repository: lukasb27/application-argocd-control
           token: ${{ secrets.ARGO_CD_REPO_TOKEN }}
 
       - name: Remove YAML file

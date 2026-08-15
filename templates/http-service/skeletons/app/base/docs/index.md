@@ -11,7 +11,7 @@ template (`goldenpath.lukasb27/template-version: ${{ values.template_version }}`
 - A Docker build (app image + a separate integration-test image) on every push
 - A per-PR ephemeral Argo CD environment, torn down when the PR closes
 - A persistent environment on `main`, managed in
-  [fermentation-station-argocd-control](https://github.com/lukasb27/fermentation-station-argocd-control)
+  [application-argocd-control](https://github.com/lukasb27/application-argocd-control)
 - This page, via TechDocs
 
 ## Local development
