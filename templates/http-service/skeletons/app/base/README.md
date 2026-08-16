@@ -25,13 +25,21 @@ gh secret set RELEASE_PLEASE_TOKEN --repo lukasb27/${{ values.name }}
 - `RELEASE_PLEASE_TOKEN` — a PAT (not the default `GITHUB_TOKEN`) so release-please's
   merge commit to `main` actually triggers `docker.yml`
 
-`pr-review.yml` and `claude-issue-triage.yml` also need:
+`pr-review.yml` and `claude-issue-triage.yml` are both opt-in via label, not
+triggered automatically — apply one to a PR or issue to run it, it's removed
+once the run starts. Needs these six labels:
 
 ```
 gh label create needs-triage --repo lukasb27/${{ values.name }}
 gh label create needs-triage-sonnet --repo lukasb27/${{ values.name }}
 gh label create needs-triage-opus --repo lukasb27/${{ values.name }}
+gh label create needs-review --repo lukasb27/${{ values.name }}
+gh label create needs-review-sonnet --repo lukasb27/${{ values.name }}
+gh label create needs-review-opus --repo lukasb27/${{ values.name }}
 ```
+
+Plain/`-sonnet`/`-opus` picks the model (Haiku/Sonnet/Opus) — see the
+workflow files' own comments for real cost data per tier.
 
 - The official [Claude GitHub App](https://github.com/apps/claude) **installed
   on this repo** — required in addition to `ANTHROPIC_API_KEY`, not instead of it
