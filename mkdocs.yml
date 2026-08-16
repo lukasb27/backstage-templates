@@ -6,6 +6,7 @@ nav:
   - Platform Overview: platform-overview.md
   - ADRs:
       - Argo CD Notifications for the Integration-Test Gate: argocd-notifications-gate-adr.md
+      - Claude-Powered Issue Triage and PR Review: claude-review-and-triage-adr.md
 plugins:
   - techdocs-core
 markdown_extensions:
