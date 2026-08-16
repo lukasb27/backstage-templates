@@ -163,6 +163,16 @@ spec:
           - ci
           - docker
 
+    - id: restrict-pr-creation
+      name: Restrict PR Creation to Collaborators
+      action: goldenPath:restrictPrCreation
+      input:
+        # Closes the fork-PR gap (see docs/argocd-notifications-gate-adr.md): a
+        # repo's own GITHUB_TOKEN can't do this itself — "administration" isn't a
+        # valid `permissions:` key for any token — so it runs here instead, using
+        # the same integration credential that just set branch protection above.
+        repoUrl: ${{ parameters.repoUrl }}
+
     - id: register-argo-app
       name: Register Persistent Environment
       action: publish:github:pull-request

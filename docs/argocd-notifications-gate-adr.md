@@ -108,3 +108,34 @@ Re-runs on every subsequent push to `main` too, so it self-heals if the setting 
   check in production (not just a wrong count or a bad log line, but a merge genuinely blocked), the
   reliability case for Argo CD Notifications moves from "real but not urgent" to "worth the cluster-config
   cost."
+
+## Update — 2026-08-16
+
+The security revisit trigger above fired, on the first real test. `administration` is not "unverified for
+`GITHUB_TOKEN` on this account tier" — it isn't a valid key in a workflow's `permissions:` block **at all**,
+for any token, on any account (confirmed against GitHub's workflow-syntax reference: the full list is
+`actions`, `artifact-metadata`, `attestations`, `checks`, `code-quality`, `contents`, `deployments`,
+`discussions`, `id-token`, `issues`, `packages`, `pages`, `pull-requests`, `security-events`, `statuses`,
+`vulnerability-alerts`). GitHub Actions rejects the whole workflow file at parse time over the unrecognized
+key — zero jobs ever run, surfaced as a generic "failed because of a workflow file issue" — so
+`bootstrap-repo-settings.yml` has never once succeeded, on any scaffold, since it was written.
+
+Confirmed live: a fresh scaffold (`lukas-test-e2e-verify`, 2026-08-16) came up with
+`pull_request_creation_policy` still `all`. The fork-PR gap this ADR set out to close on every future service
+has been open on every one of them since `bootstrap-repo-settings.yml` shipped, silently — no error surfaced
+anywhere a human would see it.
+
+**Revised decision:** replace the workflow with a custom scaffolder action,
+[`goldenPath:restrictPrCreation`](https://github.com/lukasb27/backstage-app/blob/main/packages/backend/src/modules/goldenPathActions.ts),
+run once at scaffold time as a `template.yaml` step, right after branch protection. This does **not** repeat
+the reasoning rejected for `goldenPath:setRepoSecrets` (the plan's P4 note on secret distribution) — that
+rejection was about injecting a *new secret* into every scaffolded repo, where the real answer is an
+org-level secret policy or short-lived App tokens, not custom backend code. This action injects nothing into
+the scaffolded repo at all; it makes one authenticated API call from Backstage's own backend, using the
+`backstage-scaffolder-github-token` credential Backstage already holds and already uses for
+`github:branch-protection:create` a few steps earlier in the same template — the exact mechanism, and the
+exact credential, that just proved live it can already do admin-level operations on a repo it didn't create
+manually. No new secret, anywhere.
+
+The five pre-existing repos patched directly by this ADR were unaffected by this bug (that was a one-time
+manual API call, not the workflow) and remain `collaborators_only`.
