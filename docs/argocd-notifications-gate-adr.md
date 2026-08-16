@@ -91,7 +91,8 @@ by hand. For every *future* scaffolded service, this is no longer manual: no sto
 for this (there is no generic HTTP/settings action installed in this Backstage instance, and building a
 custom one repeats the reasoning already rejected for `ANTHROPIC_API_KEY` distribution — the only bespoke
 backend code, requiring an image rebuild for every change). Instead,
-[`bootstrap-repo-settings.yml`](https://github.com/lukasb27/backstage-templates/blob/main/templates/http-service/skeletons/app/base/.github/workflows/bootstrap-repo-settings.yml)
+[`bootstrap-repo-settings.yml`](https://github.com/lukasb27/backstage-templates/blob/33a4b67/templates/http-service/skeletons/app/base/.github/workflows/bootstrap-repo-settings.yml)
+(linked at the commit that added it — removed since, see the 2026-08-16 update below)
 ships in every scaffolded service's skeleton and self-applies the setting on the first push to `main` (the
 repo's own `github.token`, granted `administration: write`, patching its own settings — no new secret).
 Re-runs on every subsequent push to `main` too, so it self-heals if the setting is ever reset by hand.
