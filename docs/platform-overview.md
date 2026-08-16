@@ -89,7 +89,7 @@ When a template step needs to do something no stock Backstage action covers —
 [`goldenPath:restrictPrCreation`](https://github.com/lukasb27/backstage-app/blob/main/packages/backend/src/modules/goldenPathActions.ts)
 is the precedent to follow: a custom **scaffolder action**, registered into the
 Scaffolder plugin's action registry via the `scaffolderActionsExtensionPoint`
-extension point in a `backend-app`-side backend module, called from
+extension point in a `backstage-app`-side backend module, called from
 `template.yaml` by `action: goldenPath:<name>` exactly like a stock action
 (`github:branch-protection:create`, `publish:github`, ...). It's invoked
 in-process by the scaffolder's task-execution engine when a template step names

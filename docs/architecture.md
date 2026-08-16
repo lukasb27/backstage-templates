@@ -71,7 +71,7 @@ sequenceDiagram
     Svc->>Env: call (needs: ci)
     Env->>Svc: post "pending" status
     Env-->>GHCR: poll until both images exist
-    Env->>Control: push rendered Application manifest (PR)
+    Env->>Control: commit + push rendered Application manifest directly to main
     Control->>Argo: selfHeal picks up the change
     Argo->>K8s: create namespace, deploy app
     K8s-->>Argo: Deployment becomes healthy

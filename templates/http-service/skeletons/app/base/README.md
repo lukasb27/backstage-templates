@@ -9,8 +9,9 @@ pieces fit together — this repo, the control repo, and the referenced
 
 ## One-time setup
 
-Three secrets aren't provisioned automatically (no custom scaffolder action in v1 —
-see the plan's Secrets decision) and need setting once per new service:
+Three secrets aren't provisioned automatically (no custom scaffolder action provisions
+secrets into scaffolded repos in v1 — see the plan's Secrets decision) and need setting
+once per new service:
 
 ```
 gh secret set ANTHROPIC_API_KEY --repo lukasb27/${{ values.name }}
