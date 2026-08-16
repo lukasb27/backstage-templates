@@ -1,0 +1,26 @@
+name: Verify Template
+
+# Static checks only — no call to Backstage's dry-run API. backstage.example
+# only resolves inside the homelab's VPN, so a GitHub-hosted runner can't
+# reach it (see scripts/verify_template.py's own header for the full reasoning
+# and what this deliberately does and doesn't catch).
+on:
+  pull_request:
+    paths:
+      - 'templates/**'
+      - 'scripts/verify_template.py'
+      - '.github/workflows/verify-template.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - run: pip install pyyaml
+
+      - run: python scripts/verify_template.py
