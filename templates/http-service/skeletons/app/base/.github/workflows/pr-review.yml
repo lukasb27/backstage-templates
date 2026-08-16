@@ -37,6 +37,20 @@
 # time this fires twice on one real PR, same way the duplicate-comment issue
 # in post_report_to_pr.py (integration_tests/) was only found by watching it
 # run live.
+#
+# The diff is computed here and embedded directly in the prompt, rather than
+# leaving Claude to find it. Confirmed live 2026-08-16 (real run trace, not
+# assumed): the action's own system prompt already lists changed files and
+# +/- line counts before any tool call, but not the actual diff content — for
+# a real change (not the trivial 2-line one this was first tested against),
+# Claude would otherwise burn turns reading whole files just to reconstruct
+# what changed. Handing it the exact diff text upfront should only ever
+# reduce or match turns needed for extra context, never increase them, since
+# the same follow-up exploration would still happen either way — but that's
+# reasoning, not proof; re-check real cost/turn numbers the first time this
+# runs against a real, non-trivial diff. Truncated to 8000 chars as a safety
+# cap against a single huge diff blowing up prompt size/cost in the opposite
+# direction.
 
 name: Claude PR Review
 
@@ -94,6 +108,21 @@ jobs:
               name: "${{ github.event.label.name }}",
             }).catch(() => {});
 
+      - name: Compute PR diff
+        id: pr-diff
+        run: |
+          git diff "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" > /tmp/pr.diff
+          DELIM="diff_$(date +%s%N)"
+          {
+            echo "content<<${DELIM}"
+            head -c 8000 /tmp/pr.diff
+            if [ "$(wc -c < /tmp/pr.diff)" -gt 8000 ]; then
+              echo ""
+              echo "... (truncated at 8000 chars, $(wc -c < /tmp/pr.diff) total)"
+            fi
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Review PR with Claude
         # continue-on-error: this is advisory only — a quota/rate-limit/
         # missing-secret failure here must never fail the job or block
@@ -103,13 +132,20 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
-          claude_args: "--model ${{ steps.pick-model.outputs.model }} --max-turns 20"
+          claude_args: "--model ${{ steps.pick-model.outputs.model }} --max-turns 8"
           prompt: |
             You are reviewing pull request #${{ github.event.pull_request.number }}
             in this repository: "${{ github.event.pull_request.title }}".
 
-            Review the diff on this PR. You can read and search the
-            repository, but you cannot execute commands (no Bash access) —
+            Here is the full diff for this PR:
+
+            ```diff
+            ${{ steps.pr-diff.outputs.content }}
+            ```
+
+            You can also read and search the rest of the repository for
+            context (e.g. checking how a changed function is called
+            elsewhere), but you cannot execute commands (no Bash access) —
             `ci` already runs the real tests/linters on this PR; review the
             diff itself, don't try to re-run the pipeline.
 
