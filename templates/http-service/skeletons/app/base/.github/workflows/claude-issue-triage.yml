@@ -1,0 +1,145 @@
+# Investigate a labeled issue with Claude and post findings as a comment.
+#
+# This is intended as read-only triage — investigation and a suggested
+# approach, not code changes. That's enforced two ways:
+#   1. No Bash tool is granted, so Claude can read/search the repo (Read,
+#      Grep, Glob) but cannot execute anything — no git, no gh, no tests.
+#   2. The prompt explicitly instructs Claude not to modify files, branch,
+#      commit, or open a PR.
+# Neither of these is a hard permission wall the way the job's own
+# GITHUB_TOKEN scope would be — this workflow authenticates GitHub
+# operations via the installed Claude GitHub App (https://github.com/apps/claude),
+# not the job's default token, so the App's own granted installation
+# permissions are the real ceiling. Check
+# https://github.com/settings/installations if you need to know exactly
+# what that ceiling is.
+#
+# Apply one of these labels to trigger a run (removed automatically once the
+# run starts, so it doesn't re-fire on relabel). Real cost data from a
+# controlled comparison, proven live in language-teacher
+# (docs/github-issue-triage.md there):
+#   - "needs-triage"        -> Haiku  (default — ~$0.07/run, comparable
+#                              investigation quality to Sonnet on real tests)
+#   - "needs-triage-sonnet" -> Sonnet (~$0.44/run uncapped; use when Haiku's
+#                              read isn't enough)
+#   - "needs-triage-opus"   -> Opus   (~$0.87/run; deepest but rarely worth
+#                              the cost based on testing so far)
+# All three run with track_progress: true and a --max-turns cap — dropping
+# track_progress to save cost was tried and does NOT work (see below).
+#
+# Setup required (one-time):
+#   1. Install the official Claude GitHub app on this repo:
+#      https://github.com/apps/claude
+#   2. Add an ANTHROPIC_API_KEY repository secret (Console API key, not a
+#      claude.ai subscription token) — see this repo's README.
+#   3. Ensure all three labels above exist on the repo:
+#        gh label create needs-triage --repo lukasb27/${{ values.name }}
+#        gh label create needs-triage-sonnet --repo lukasb27/${{ values.name }}
+#        gh label create needs-triage-opus --repo lukasb27/${{ values.name }}
+#
+# NOTE: `anthropics/claude-code-action` input/permission requirements have
+# changed between versions and are easy to get wrong from docs alone. Real
+# runs (in language-teacher, before this was copied here) each found a
+# distinct issue with earlier versions of this file:
+#   - `max_turns` / `allowed_tools` are not valid top-level inputs (silently
+#     ignored; model/tool flags belong in `claude_args` instead).
+#   - Supplying a `prompt` puts the action in "automation mode", which does
+#     NOT post/update any comment by default — `track_progress: true` is
+#     required to get output at all.
+#   - Once the official GitHub App is installed, the action authenticates
+#     via an OIDC token exchange, which requires `id-token: write` in the
+#     job's `permissions` block — without it, every run fails immediately
+#     with "Could not fetch an OIDC token".
+#   - Turning `track_progress` OFF to save cost was tested across 4 separate
+#     attempts and every single one failed to post any comment — it either
+#     silently did nothing or burned through the turn cap retrying. Do not
+#     re-attempt this without new evidence; track_progress: true appears to
+#     be a hard requirement for this action to post output on an issue.
+# Verify against the action's current docs (docs/usage.md,
+# docs/custom-automations.md, docs/setup.md in anthropics/claude-code-action)
+# before assuming anything else here still applies.
+
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: >-
+      github.event.label.name == 'needs-triage' ||
+      github.event.label.name == 'needs-triage-sonnet' ||
+      github.event.label.name == 'needs-triage-opus'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Pick model
+        id: pick-model
+        run: |
+          case "${{ github.event.label.name }}" in
+            needs-triage-sonnet)
+              echo "model=claude-sonnet-5" >> "$GITHUB_OUTPUT"
+              ;;
+            needs-triage-opus)
+              echo "model=claude-opus-5" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "model=claude-haiku-4-5-20251001" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Remove triage label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              name: "${{ github.event.label.name }}",
+            }).catch(() => {});
+
+      - name: Investigate issue with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          claude_args: "--model ${{ steps.pick-model.outputs.model }} --max-turns 20"
+          prompt: |
+            You are triaging GitHub issue #${{ github.event.issue.number }}
+            in this repository.
+
+            Issue title: ${{ github.event.issue.title }}
+
+            Issue body:
+            ${{ github.event.issue.body }}
+
+            You can read and search the repository, but you cannot execute
+            commands (no Bash access) — investigate by reading code, not by
+            running tests or git commands. Identify whether this is a real
+            issue, the likely root cause, and the specific files/functions
+            involved.
+
+            Do NOT modify any files, create a branch, commit, or open a
+            pull request. Respond with:
+              1. A one-paragraph summary of your understanding of the issue
+              2. What you found while investigating (files/functions,
+                 with references)
+              3. A recommended approach to fix it, detailed enough that
+                 someone could pick it up and implement it directly
+              4. Any open questions, or things you could not verify without
+                 executing code

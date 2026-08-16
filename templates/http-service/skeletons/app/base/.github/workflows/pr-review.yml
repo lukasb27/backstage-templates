@@ -1,0 +1,93 @@
+# Advisory code review with Claude — posts a comment, never blocks a merge.
+#
+# Deliberately NOT a required status check (not in protect-branch's
+# requiredStatusCheckContexts in template.yaml, and shouldn't be added).
+# This is designed to soft-pass on quota, rate limits, a missing
+# ANTHROPIC_API_KEY, and anything else that could make it fail — a check
+# designed to always pass, made mandatory, is a green tick that carries no
+# information on every merge's critical path. It's a comment; comments are
+# useful on their own, without gating anything.
+#
+# Same three operational requirements as claude-issue-triage.yml, learned
+# there from real failed runs (see that file's comments and
+# language-teacher/docs/github-issue-triage.md for the full history) —
+# apply here identically:
+#   1. `claude_args: "--model ... --max-turns N"`, not top-level `max_turns`/
+#      `allowed_tools` — those are silently ignored and it falls back to a
+#      more expensive default model with no cap.
+#   2. `track_progress: true` — a custom `prompt` puts the action in
+#      "automation mode", which posts nothing without this.
+#   3. The official Claude GitHub App installed
+#      (https://github.com/apps/claude) + `id-token: write` in this job's
+#      permissions, for the OIDC exchange the App requires.
+#
+# Read-only by design, same as claude-issue-triage.yml: no Bash tool, so
+# Claude reviews by reading the diff, not by running tests, linters, or git
+# commands — `ci` already runs the real checks; this is a second pair of
+# eyes on the diff itself, not a re-run of the pipeline.
+#
+# Not yet independently verified whether track_progress's tracking comment
+# gets reused across multiple runs on the same PR (e.g. a later `synchronize`
+# push) or whether each run posts its own — worth checking the first time
+# this fires twice on one real PR, same way the duplicate-comment issue in
+# post_report_to_pr.py (integration_tests/) was only found by watching it
+# run live.
+
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: claude-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review PR with Claude
+        # continue-on-error: this is advisory only — a quota/rate-limit/
+        # missing-secret failure here must never fail the job or block
+        # anything. See the file header for why this isn't a required check.
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          claude_args: "--model claude-haiku-4-5-20251001 --max-turns 20"
+          prompt: |
+            You are reviewing pull request #${{ github.event.pull_request.number }}
+            in this repository: "${{ github.event.pull_request.title }}".
+
+            Review the diff on this PR. You can read and search the
+            repository, but you cannot execute commands (no Bash access) —
+            `ci` already runs the real tests/linters on this PR; review the
+            diff itself, don't try to re-run the pipeline.
+
+            Look for: correctness bugs, obvious simplification or
+            reuse opportunities, and anything that looks inconsistent with
+            the rest of the codebase's existing patterns. Skip nitpicks
+            that don't affect correctness or maintainability.
+
+            Do NOT modify any files, create a branch, or commit. Respond
+            with:
+              1. A one-sentence summary verdict (looks good / has concerns)
+              2. Specific findings, each with a file:line reference and a
+                 concrete description of the problem — skip this section
+                 entirely if you found nothing worth flagging
+              3. Anything you couldn't fully verify without running code
