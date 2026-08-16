@@ -45,9 +45,13 @@ WORKDIR $PYSETUP_PATH
 RUN poetry install --without dev --with integ-test --no-root
 
 WORKDIR /app
-COPY ./app /app/app
-COPY ./integration_tests /app/integration_tests
-RUN useradd --create-home --uid 1000 appuser
+# post_report_to_pr.py writes results.xml/pytest-output.txt straight into the
+# working directory (Path("results.xml"), no subdirectory) at runtime — chown
+# /app itself, not just its children, or uid 1000 gets PermissionError the
+# first time it actually runs. WORKDIR creates /app as root before this.
+RUN useradd --create-home --uid 1000 appuser && chown 1000:1000 /app
+COPY --chown=1000:1000 ./app /app/app
+COPY --chown=1000:1000 ./integration_tests /app/integration_tests
 USER 1000
 
 CMD ["python", "integration_tests/post_report_to_pr.py"]
