@@ -44,5 +44,7 @@
 - PR titles must follow Conventional Commits — squash merges use the PR title, and
   release-please reads it to decide the next version.
 - `ci` and `docker` must pass before merge (both are required status checks).
-  `pr-review` and `kubernetes/integration-tests` are advisory — read them, but they
-  don't block.
+  `kubernetes/integration-tests` is advisory — read it, but it doesn't block.
+- A Claude review isn't automatic — apply the `needs-review` label (or
+  `needs-review-sonnet`/`needs-review-opus` for a deeper read) to request one. It
+  posts a comment and never blocks merging either way.

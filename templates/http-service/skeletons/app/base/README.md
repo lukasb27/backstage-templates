@@ -41,8 +41,8 @@ gh label create needs-review-opus --repo lukasb27/${{ values.name }}
 Plain/`-sonnet`/`-opus` picks the model (Haiku/Sonnet/Opus) — see the
 workflow files' own comments for real cost data per tier.
 
-- The official [Claude GitHub App](https://github.com/apps/claude) **installed
-  on this repo** — required in addition to `ANTHROPIC_API_KEY`, not instead of it
+The official [Claude GitHub App](https://github.com/apps/claude) also needs to be
+**installed on this repo** — required in addition to `ANTHROPIC_API_KEY`, not instead of it
   (see the workflow files' own comments for why both are needed). If the App is
   installed in "selected repositories" mode rather than "all repositories" on
   the `lukasb27` account, a freshly-scaffolded repo needs adding to that list
