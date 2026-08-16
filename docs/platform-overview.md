@@ -83,6 +83,31 @@ flowchart TB
     CoreCD -->|watched by Argo CD, prune+selfHeal| Cluster
 ```
 
+## Extending the scaffolder with custom logic
+
+When a template step needs to do something no stock Backstage action covers —
+[`goldenPath:restrictPrCreation`](https://github.com/lukasb27/backstage-app/blob/main/packages/backend/src/modules/goldenPathActions.ts)
+is the precedent to follow: a custom **scaffolder action**, registered into the
+Scaffolder plugin's action registry via the `scaffolderActionsExtensionPoint`
+extension point in a `backend-app`-side backend module, called from
+`template.yaml` by `action: goldenPath:<name>` exactly like a stock action
+(`github:branch-protection:create`, `publish:github`, ...). It's invoked
+in-process by the scaffolder's task-execution engine when a template step names
+it — no new route or externally-callable interface, just another entry in the
+same action registry every built-in action already goes through — using
+whichever credentials the handler is given (usually the same GitHub integration
+credential `github:branch-protection:create` already uses). See
+[`argocd-notifications-gate-adr.md`](./argocd-notifications-gate-adr.md) for why
+this is the right tool here and *not* the same thing as the rejected
+`goldenPath:setRepoSecrets` idea (that one was about distributing new secrets
+into every scaffolded repo; this is about Backstage doing something once, itself,
+at scaffold time — no per-repo secret involved either way).
+
+The one real cost: it lives in `backstage-app`, not this repo, so a change needs
+an image rebuild + Argo CD rollout of Backstage itself before a template can use
+it — slower than editing a skeleton file, but the only way to reach credentials
+or logic a workflow running inside the scaffolded repo can't.
+
 ## Legacy services
 
 `fermentation-station-agent` predates the golden path entirely — it has its
