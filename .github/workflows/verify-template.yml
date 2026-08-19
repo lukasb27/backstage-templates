@@ -24,3 +24,73 @@ jobs:
       - run: pip install pyyaml
 
       - run: python scripts/verify_template.py
+
+  # verify_template.py checks the template *structure*; it never executes the
+  # skeleton's own code, so a broken pyproject.toml or a failing test could
+  # merge here and only surface on someone's next real scaffold. This job
+  # assembles the same app/ tree fetch:template would produce (base, then the
+  # python skeleton on top, matching template.yaml's step order) and runs its
+  # actual ci job commands against it — same install/test/lint steps the
+  # scaffolded repo's own .github/workflows/actions.yml runs.
+  verify-python-skeleton:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble the app/ tree a scaffold would produce
+        run: |
+          mkdir -p /tmp/skeleton/app
+          cp -r templates/http-service/skeletons/app/base/. /tmp/skeleton/app/
+          cp -rn templates/http-service/skeletons/app/languages/python/. /tmp/skeleton/app/
+
+      - name: Fill in the Nunjucks tokens fetch:template would render
+        working-directory: /tmp/skeleton/app
+        run: |
+          # Only pyproject.toml and app/main.py carry Nunjucks tokens today. A real
+          # render needs Backstage itself; this is a plain substitution of the exact
+          # known tokens, just enough to get real, installable Python out the other
+          # end — not a general renderer. The open/close delimiters are built from
+          # separate pieces rather than written literally: GitHub Actions parses its
+          # own workflow-expression syntax using the exact same delimiter, so a
+          # literal token here would make GitHub try to evaluate it as an
+          # expression (undefined 'values' context) and reject the whole file —
+          # the same class of delimiter collision Nunjucks hits on raw GitHub
+          # Actions files, just the other engine tripping on it this time.
+          OPEN="$(printf '%s' '$'){{"
+          CLOSE="}}"
+          sed -i \
+            -e "s/${OPEN} values.name ${CLOSE}/verify-skeleton/g" \
+            -e "s/${OPEN} values.description ${CLOSE}/Template verification build/g" \
+            -e "s/${OPEN} values.owner ${CLOSE}/verify-bot/g" \
+            pyproject.toml app/main.py
+
+      - name: Fail loudly if an unhandled template token slipped in
+        working-directory: /tmp/skeleton/app
+        run: |
+          if grep -rl '{{' --include='*.py' --include='*.toml' .; then
+            echo "Unrendered template token found above (see the previous step) — add it to the sed step."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        working-directory: /tmp/skeleton/app
+        run: poetry install --no-root --with dev --no-interaction
+
+      - name: Run unit tests
+        working-directory: /tmp/skeleton/app
+        run: poetry run pytest -m "not e2e"
+
+      - name: Run e2e tests
+        working-directory: /tmp/skeleton/app
+        run: poetry run pytest -m e2e
+
+      - name: Run flake8
+        working-directory: /tmp/skeleton/app
+        run: poetry run flake8 app/ tests/
