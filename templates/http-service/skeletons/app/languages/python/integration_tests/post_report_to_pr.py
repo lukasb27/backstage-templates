@@ -23,6 +23,7 @@ COMMIT_SHA = os.environ["COMMIT_SHA"]
 GH_TOKEN = Path("/etc/github/token").read_text().strip()
 
 JUNIT_PATH = Path("results.xml")
+COMMENT_MARKER = "<!-- integration-test-results -->"
 
 
 def run_tests() -> int:
@@ -56,7 +57,8 @@ def parse_results() -> dict:
 def build_report_body(counts: dict) -> str:
     passed = counts["tests"] - counts["failures"] - counts["errors"] - counts["skipped"]
     log = Path("pytest-output.txt").read_text()[-6000:]
-    return f"""## Integration Test Results
+    return f"""{COMMENT_MARKER}
+## Integration Test Results
 | Status | Count |
 | :--- | :--- |
 | Passed | {passed} |
@@ -77,16 +79,47 @@ def build_report_body(counts: dict) -> str:
 """
 
 
+def find_existing_comment_id(headers: dict) -> int | None:
+    """Find our own prior report comment, so re-running the Job (retries, rapid
+    re-pushes racing image propagation) updates it instead of piling up duplicates —
+    same find-or-update approach as actions.yml's ci-summary comment."""
+    page = 1
+    while True:
+        response = httpx.get(
+            f"https://api.github.com/repos/{REPO_SLUG}/issues/{PR_NUMBER}/comments",
+            headers=headers,
+            params={"per_page": 100, "page": page},
+        )
+        if response.status_code != 200:
+            return None
+        comments = response.json()
+        for comment in comments:
+            if COMMENT_MARKER in comment.get("body", ""):
+                return comment["id"]
+        if len(comments) < 100:
+            return None
+        page += 1
+
+
 def post_comment(body: str) -> None:
-    httpx.post(
-        f"https://api.github.com/repos/{REPO_SLUG}/issues/{PR_NUMBER}/comments",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {GH_TOKEN}",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-        json={"body": body},
-    )
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {GH_TOKEN}",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    existing_id = find_existing_comment_id(headers)
+    if existing_id is not None:
+        httpx.patch(
+            f"https://api.github.com/repos/{REPO_SLUG}/issues/comments/{existing_id}",
+            headers=headers,
+            json={"body": body},
+        )
+    else:
+        httpx.post(
+            f"https://api.github.com/repos/{REPO_SLUG}/issues/{PR_NUMBER}/comments",
+            headers=headers,
+            json={"body": body},
+        )
 
 
 def post_status(state: str, description: str) -> None:
