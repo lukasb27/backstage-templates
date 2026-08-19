@@ -46,21 +46,29 @@ jobs:
       - name: Fill in the Nunjucks tokens fetch:template would render
         working-directory: /tmp/skeleton/app
         run: |
-          # Only pyproject.toml and app/main.py carry ${{ values.X }} tokens today.
-          # A real Nunjucks render needs Backstage itself; this is a plain
-          # substitution of the exact known tokens, just enough to get real,
-          # installable Python out the other end — not a general renderer.
+          # Only pyproject.toml and app/main.py carry Nunjucks tokens today. A real
+          # render needs Backstage itself; this is a plain substitution of the exact
+          # known tokens, just enough to get real, installable Python out the other
+          # end — not a general renderer. The open/close delimiters are built from
+          # separate pieces rather than written literally: GitHub Actions parses its
+          # own workflow-expression syntax using the exact same delimiter, so a
+          # literal token here would make GitHub try to evaluate it as an
+          # expression (undefined 'values' context) and reject the whole file —
+          # the same class of delimiter collision Nunjucks hits on raw GitHub
+          # Actions files, just the other engine tripping on it this time.
+          OPEN="$(printf '%s' '$'){{"
+          CLOSE="}}"
           sed -i \
-            -e 's/\${{ values.name }}/verify-skeleton/g' \
-            -e 's/\${{ values.description }}/Template verification build/g' \
-            -e 's/\${{ values.owner }}/verify-bot/g' \
+            -e "s/${OPEN} values.name ${CLOSE}/verify-skeleton/g" \
+            -e "s/${OPEN} values.description ${CLOSE}/Template verification build/g" \
+            -e "s/${OPEN} values.owner ${CLOSE}/verify-bot/g" \
             pyproject.toml app/main.py
 
       - name: Fail loudly if an unhandled template token slipped in
         working-directory: /tmp/skeleton/app
         run: |
           if grep -rl '{{' --include='*.py' --include='*.toml' .; then
-            echo "Unrendered \${{ ... }} token found above — add it to the sed step."
+            echo "Unrendered template token found above (see the previous step) — add it to the sed step."
             exit 1
           fi
 
