@@ -7,6 +7,7 @@ nav:
   - ADRs:
       - Argo CD Notifications for the Integration-Test Gate: argocd-notifications-gate-adr.md
       - Claude-Powered Issue Triage and PR Review: claude-review-and-triage-adr.md
+      - "Proposed: Custom Backstage Plugin for Service Archive/Delete": service-decommission-plugin-adr.md
 plugins:
   - techdocs-core
 markdown_extensions:
