@@ -28,7 +28,7 @@ list what doesn't match. Neither is served by anything already installed or
 installable off the shelf — they depend on this platform's specific naming
 conventions, not generic service health.
 
-## Decision (proposed, not yet built)
+## Decision (as originally proposed)
 
 A single custom plugin, **read-only / detection-only**:
 
@@ -56,8 +56,10 @@ kept as two separate builds rather than one plugin that does both, so the
 read-only surface never needs write-scoped credentials.
 
 A full phased build plan (scaffolding steps, which Backstage APIs are involved
-in each phase, test approach) is tracked outside this repo for now, as working
-notes rather than committed documentation, since the plugin doesn't exist yet.
+in each phase, test approach) was tracked outside this repo as working notes
+while the plugin was being designed. It's been deleted now that the
+`findStaleEnvironments` half it planned has shipped — see Status/Consequences
+above for what actually got built.
 
 ## Consequences
 
@@ -127,6 +129,11 @@ list are now resolved.
 
 ## Revisit Trigger
 
-Once the plugin is actually built (by hand, as a learning exercise — not
-scaffolded via Claude Code), revisit this ADR to move it from Proposed to
-Accepted and record anything the build surfaced that changed the design.
+**Fired and acted on.** The plugin was built by hand as
+`stale-environment-finder`/`stale-environment-finder-backend` in
+`backstage-app` (PRs #16, #20), and this ADR's Status was moved from
+Proposed to Accepted accordingly. What the build surfaced that changed the
+design: the `prNumber`-empty-string-vs-absent distinction under "Confirmed
+since first draft," and the decision to ship only `findStaleEnvironments` —
+`findOrphanedPackages` was scoped here but not built, tracked as open future
+work under Consequences rather than as a new revisit trigger for this ADR.
