@@ -20,7 +20,7 @@ import yaml
 
 TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates" / "http-service"
 TEMPLATE_YAML = TEMPLATE_ROOT / "template.yaml"
-REQUIRED_SECRETS = ["ANTHROPIC_API_KEY", "ARGO_CD_REPO_TOKEN", "RELEASE_PLEASE_TOKEN"]
+REQUIRED_SECRETS = ["ANTHROPIC_API_KEY", "RELEASE_PLEASE_TOKEN"]
 
 errors: list[str] = []
 warnings: list[str] = []
@@ -132,6 +132,17 @@ def check_fetch_urls_and_copy_patterns(template: dict) -> None:
                     )
 
 
+def check_control_skeleton() -> None:
+    previews = TEMPLATE_ROOT / "skeletons" / "control" / "apps" / "${{ values.name }}-previews.yaml"
+    if not previews.exists():
+        fail(f"{previews} does not exist")
+        return
+    with previews.open() as f:
+        manifest = yaml.safe_load(f)
+    if manifest.get("kind") != "ApplicationSet":
+        fail(f"{previews}: kind is {manifest.get('kind')!r}, expected 'ApplicationSet'")
+
+
 def check_readme_secrets() -> None:
     readme = TEMPLATE_ROOT / "skeletons" / "app" / "base" / "README.md"
     if not readme.exists():
@@ -159,6 +170,7 @@ def main() -> int:
     template = load_template()
     check_structure(template)
     check_fetch_urls_and_copy_patterns(template)
+    check_control_skeleton()
     check_readme_secrets()
     return report()
 

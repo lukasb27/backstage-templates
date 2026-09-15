@@ -5,8 +5,8 @@
 | Repo | Holds |
 | --- | --- |
 | This repo | Application code, Dockerfile, `k8s/` base, CI |
-| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | The persistent Argo CD `Application` for `main`, and one per open PR |
-| [backstage-templates](https://github.com/lukasb27/backstage-templates) | The template this repo was scaffolded from, and the `ephemeral-env.yml` reusable workflow this repo's CI calls by version (`@v1`) |
+| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | The persistent Argo CD `Application` for `main`, and the previews `ApplicationSet` that generates one ephemeral `Application` per open PR |
+| [backstage-templates](https://github.com/lukasb27/backstage-templates) | The template this repo was scaffolded from |
 
 ## Request path
 
@@ -24,5 +24,6 @@ not this service's business:
 
 1. **The template version** — the `goldenpath.lukasb27/template-version` annotation
    in `catalog-info.yaml` records what you were scaffolded from.
-2. **The ephemeral-env workflow** — referenced by version (`@v1`), not copied. Don't
-   inline its logic here; if it needs to change, that change happens once, upstream.
+2. **The previews `ApplicationSet`** — lives in the control repo, generated once at
+   scaffold time. Don't hand-edit it there; if the generator logic needs to change,
+   that change happens upstream, in the template.

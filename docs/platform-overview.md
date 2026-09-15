@@ -12,7 +12,7 @@ cause confusion — why there are **two** Argo CD control repos, not one.
 | [backstage-app](https://github.com/lukasb27/backstage-app) | The Backstage instance itself — the portal, the `/create` wizard, the catalog |
 | This repo (`backstage-templates`) | The `http-service` golden-path template, and this documentation |
 | [homelab-argocd-control](https://github.com/lukasb27/homelab-argocd-control) | **Core platform** Argo CD — long-lived, human-reviewed infrastructure: the CNPG operator, the Postgres cluster backing Backstage's own database, Backstage itself |
-| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | **Application-level** Argo CD — one persistent + N ephemeral Applications per golden-path service, created and destroyed automatically by each service's own CI |
+| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | **Application-level** Argo CD — one persistent + N ephemeral Applications per golden-path service. For `template-version: v2`+ services, the ephemeral ones are generated directly by a per-service previews `ApplicationSet`; `v1` (`lukas-test` only) still creates/destroys them via CI-git-push |
 | Scaffolded services (many) | Application code, `k8s/` base, CI — one repo per service, all built from this template |
 
 ## Why two Argo CD repos, not one
@@ -49,7 +49,7 @@ flowchart TB
     end
 
     subgraph Templates["backstage-templates"]
-        Template["http-service template\n+ ephemeral-env.yml"]
+        Template["http-service template"]
     end
 
     Backstage -->|scaffolds from| Template
@@ -107,6 +107,28 @@ The one real cost: it lives in `backstage-app`, not this repo, so a change needs
 an image rebuild + Argo CD rollout of Backstage itself before a template can use
 it — slower than editing a skeleton file, but the only way to reach credentials
 or logic a workflow running inside the scaffolded repo can't.
+
+## Template versions: v1 vs v2+
+
+Not every scaffolded service runs the same ephemeral-environment mechanism.
+`catalog-info.yaml`'s `goldenpath.lukasb27/template-version` annotation
+records which one a given service was scaffolded with:
+
+- **`v1`** — the original CI-git-push mechanism (`ephemeral-env.yml`,
+  `cleanup.yml`), frozen behind this repo's `v1` git tag so `@v1`-pinned CI
+  calls keep resolving it even though it's deleted from `main`. Exactly one
+  real service, `lukas-test`, runs on this path.
+- **`v2`+** — a per-service Argo CD `ApplicationSet` (`pullRequest`
+  generator), delivered in the control repo alongside the existing
+  persistent `Application`, generates ephemeral `Application`s directly —
+  pinned to the PR's commit SHA rather than a mutable branch name. The
+  default for every service scaffolded from this point on.
+
+Migrating `lukas-test` onto `v2` is explicitly out of scope for the migration
+that introduced it — see
+[the ApplicationSet migration ADR](argocd-applicationset-migration-adr.md)
+for the full reasoning, including why its own "wait for a second real
+service" precondition was waived rather than satisfied.
 
 ## Legacy services
 

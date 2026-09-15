@@ -4,26 +4,27 @@ ${{ values.description }}
 
 Scaffolded from the [http-service](https://github.com/lukasb27/backstage-templates)
 golden-path template. See [docs/architecture.md](docs/architecture.md) for how the
-pieces fit together — this repo, the control repo, and the referenced
-`ephemeral-env.yml` workflow.
+pieces fit together — this repo, the control repo, and the per-PR preview
+`ApplicationSet`.
 
 ## One-time setup
 
-Three secrets aren't provisioned automatically (no custom scaffolder action provisions
+Two secrets aren't provisioned automatically (no custom scaffolder action provisions
 secrets into scaffolded repos in v1 — see the plan's Secrets decision) and need setting
 once per new service:
 
 ```
 gh secret set ANTHROPIC_API_KEY --repo lukasb27/${{ values.name }}
-gh secret set ARGO_CD_REPO_TOKEN --repo lukasb27/${{ values.name }}
 gh secret set RELEASE_PLEASE_TOKEN --repo lukasb27/${{ values.name }}
 ```
 
 - `ANTHROPIC_API_KEY` — `pr-review.yml` and `claude-issue-triage.yml`
-- `ARGO_CD_REPO_TOKEN` — write access to `application-argocd-control`, used by
-  the referenced `ephemeral-env.yml` workflow and by `cleanup.yml`
 - `RELEASE_PLEASE_TOKEN` — a PAT (not the default `GITHUB_TOKEN`) so release-please's
   merge commit to `main` actually triggers `docker.yml`
+
+Ephemeral per-PR environments need no per-repo secret at all — the previews
+`ApplicationSet` (in the control repo) authenticates to GitHub once,
+centrally, via its own Secret in the `argocd` namespace.
 
 `pr-review.yml` and `claude-issue-triage.yml` are both opt-in via label, not
 triggered automatically — apply one to a PR or issue to run it, it's removed
@@ -62,5 +63,5 @@ poetry run uvicorn app.main:app --reload
 | Repo | Holds |
 | --- | --- |
 | This repo | Application code, Dockerfile, `k8s/` base, CI |
-| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | The Argo CD `Application` for `main`, and one per open PR |
-| [backstage-templates](https://github.com/lukasb27/backstage-templates) | The template this was scaffolded from, and the `ephemeral-env.yml` workflow this repo's CI calls by version |
+| [application-argocd-control](https://github.com/lukasb27/application-argocd-control) | The persistent Argo CD `Application` for `main`, and the previews `ApplicationSet` that generates one ephemeral `Application` per open PR |
+| [backstage-templates](https://github.com/lukasb27/backstage-templates) | The template this was scaffolded from |

@@ -2,14 +2,10 @@
 
 ## Status
 
-Proposed — design only, not started. Carried over from the original golden-path
-build plan, where it was scoped as target architecture (P4, deferred): "migrate
-once there is a working baseline and a second consumer to prove it against."
-That baseline now exists — the `http-service` template is live and the
-`stale-environment-finder` Backstage plugin has already read Application state
-produced by today's mechanism in production — but no second real consumer
-(a service other than the ones already scaffolded from this template) has
-onboarded yet, so the original gating condition is only half met.
+Accepted — implementation started 2026-09-15. See "Update — 2026-09-15" below:
+the second-service half of this ADR's original Revisit Trigger was explicitly
+waived by the platform owner, not satisfied; the Open questions below were
+resolved by direct live verification first.
 
 ## Context
 
@@ -114,28 +110,55 @@ currently-unused `type=sha` output), replacing the mutable branch reference.
   per service) whose existence and permissions have to be verified rather
   than assumed — see Open questions.
 
-## Open questions (not yet resolved)
+## Open questions (resolved — see Update below)
 
-- Whether the `applicationsets.argoproj.io` CRD/controller is installed on
-  the homelab cluster at all — unconfirmed; the cluster wasn't reachable from
-  this session (VPN-gated) to run `kubectl get crd applicationsets.argoproj.io`.
-- Whether the `default` AppProject's namespaced-resource permissions actually
-  let the app-of-apps root Application create an `ApplicationSet` custom
-  resource the same way it creates `Application` resources today — needs a
-  real, throwaway test against the live cluster, not an assumption.
-- Whether a GitHub token Secret for the generator already exists in the
-  `argocd` namespace, or needs to be created — and if created, whether it
-  belongs in `homelab-argocd-control` (core platform config, low churn) per
-  the reasoning in
-  [`two-argocd-repos-adr.md`](https://github.com/lukasb27/homelab-argocd-control/blob/main/docs/two-argocd-repos-adr.md),
-  rather than `application-argocd-control`.
-- Whether `head_short_sha`'s format is guaranteed to match `docker.yml`'s
-  `type=sha` tag output (`sha-<7-char short SHA>`) byte-for-byte — asserted
-  from each tool's documented default, not yet verified against a real PR.
+- ~~Whether the `applicationsets.argoproj.io` CRD/controller is installed on
+  the homelab cluster at all~~ — confirmed live: CRD present, and
+  `argocd-applicationset-controller` pod is `Running`, not just deployed.
+- ~~Whether the `default` AppProject's namespaced-resource permissions
+  actually let the app-of-apps root Application create an `ApplicationSet`
+  custom resource~~ — confirmed live: the `default` `AppProject` is wide
+  open (`sourceRepos: ['*']`, `destinations: ['*'/'*']`,
+  `clusterResourceWhitelist: ['*'/'*']`), imposing no restriction beyond what
+  every existing hand-written `Application` already relies on.
+- ~~Whether a GitHub token Secret for the generator already exists in the
+  `argocd` namespace, or needs to be created~~ — a `github-pr-token` Secret
+  already existed there, but as a side effect of an unrelated, cluster-wide
+  External Secrets Operator mirror (`global-github-token`, empty
+  `namespaceSelectors`), not something scoped for this purpose. A new,
+  distinct `github-pr-generator-token` `ExternalSecret` was added instead
+  (`homelab-argocd-control` PR #7), reading the same underlying
+  `central-github-token-secret` without minting a new GitHub App — landing
+  exactly where this ADR speculated it would.
+- Whether `head_short_sha`'s format matches `docker.yml`'s `type=sha` tag
+  output byte-for-byte — not verified, and no longer needs to be: the
+  implementation templates the image tag as `sha-{{ trunc 7
+  .head_short_sha }}` (Sprig, via `goTemplate: true`), fixing the length
+  structurally so drift on either side can't cause a mismatch.
 
 ## Revisit Trigger
 
-Once a second real service has been scaffolded and is running on the current
-mechanism without issue (satisfying the original plan's own gating condition
-in full), and once the Open questions above are resolved by direct
-verification against the live cluster — not before.
+Original trigger (superseded — see Update below): once a second real service
+has been scaffolded and is running on the current mechanism without issue,
+and once the Open questions above are resolved by direct verification
+against the live cluster.
+
+## Update — 2026-09-15
+
+Implementation started at the platform owner's explicit direction, with only
+one real scaffold (`lukas-test`) still existing — the "second real service"
+half of the original Revisit Trigger above was **waived, not satisfied**.
+This is a deliberate, acknowledged deviation from this ADR's own stated
+precondition, not an oversight: recorded here rather than silently building
+past it. The Open questions half of the trigger *was* met in full first, via
+direct live verification (`kubectl get crd`/`get pods`/`get appproject`,
+read-only throughout — the implementation plan's Phase 0 spike), before any
+code or cluster change was made.
+
+Implementation is tracked via the phased plan at
+`~/.claude/plans/wiggly-plotting-lerdorf.md` (not itself in this repo).
+Phase 0 (spike) and Phase 1 (`github-pr-generator-token` provisioning) are
+done as of this update; Phases 2-5 (the `preview` label gate, the
+`backstage-templates` skeleton changes, `application-argocd-control` doc
+updates, and end-to-end verification on a throwaway scaffold) are in
+progress.

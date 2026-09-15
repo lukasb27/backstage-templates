@@ -93,7 +93,7 @@ spec:
           owner: ${{ parameters.owner }}
           system: ${{ parameters.system }}
           destination: ${{ parameters.repoUrl }}
-          template_version: v1
+          template_version: v2
 
     - id: fetch-app-language
       name: Fetch Language Skeleton

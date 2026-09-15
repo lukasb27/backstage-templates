@@ -192,10 +192,3 @@ jobs:
           [ "${{ steps.unit_tests.outputs.exit_code }}" = "0" ] || { echo "Unit tests failed."; exit 1; }
           [ "${{ steps.e2e_tests.outputs.exit_code }}" = "0" ] || { echo "E2E tests failed."; exit 1; }
           [ "${{ steps.flake8.outputs.exit_code }}" = "0" ] || { echo "Flake8 failed."; exit 1; }
-
-  ephemeral-environment-setup:
-    needs: ci
-    uses: lukasb27/backstage-templates/.github/workflows/ephemeral-env.yml@v1
-    with:
-      app_name: ${{ github.event.repository.name }}
-    secrets: inherit
