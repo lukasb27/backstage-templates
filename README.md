@@ -24,6 +24,7 @@ readable directly here:
 | [docs/argocd-notifications-gate-adr.md](docs/argocd-notifications-gate-adr.md) | Why the integration-test merge gate stays in-cluster rather than moving to Argo CD Notifications, and the fork-PR security gap this closed along the way |
 | [docs/claude-review-and-triage-adr.md](docs/claude-review-and-triage-adr.md) | The label-triggered Claude PR review and issue triage workflows shipped in the skeleton, and the `claude-code-action` config traps found running them live |
 | [docs/orphan-detector-plugin-adr.md](docs/orphan-detector-plugin-adr.md) | The `stale-environment-finder` Backstage plugin — what shipped (Argo-vs-PR-state detection) and what didn't (GHCR-orphan detection) |
+| [docs/argocd-applicationset-migration-adr.md](docs/argocd-applicationset-migration-adr.md) | Why ephemeral per-PR environments moved from a CI-git-push mechanism to a per-service `ApplicationSet`, and the `template-version: v1` (legacy) vs `v2`+ split this left behind |
 
 ## What the template actually creates
 
