@@ -8,10 +8,15 @@ on:
 permissions:
   contents: read
   packages: write
-  # Needed by the "Label PR as preview" step below: gh pr edit --add-label
-  # and gh label create need pull-requests:write; the pending status POST
-  # needs statuses:write.
+  # Needed by the "Label PR as preview" step below. pull-requests:write is
+  # for gh pr list/gh pr edit itself; label mutation — gh label create AND
+  # the label-add half of gh pr edit --add-label — sits under the Issues API
+  # even when the target is a PR, so issues:write is required too (verified:
+  # without it, gh label create 403s and aborts the step before the PR ever
+  # gets labeled, silently preventing every ephemeral environment from ever
+  # being created). statuses:write is for the pending status POST.
   pull-requests: write
+  issues: write
   statuses: write
 
 jobs:
