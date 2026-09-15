@@ -5,9 +5,13 @@ metadata:
   namespace: argocd
 spec:
   # goTemplate + Sprig (trunc) needed for the 63-char truncation below — see
-  # docs/argocd-applicationset-migration-adr.md. Uses bare {{ }}, not ${{ }},
-  # so Backstage's own Nunjucks pass (which only matches ${{ }}) leaves these
-  # untouched for Argo CD's controller to evaluate at generate-time.
+  # docs/argocd-applicationset-migration-adr.md. Uses bare double-curly Go
+  # template syntax, not Backstage's dollar-prefixed Nunjucks delimiter, so
+  # Backstage's own templating pass leaves these untouched for Argo CD's
+  # controller to evaluate at generate-time. (Note for future editors: don't
+  # write that dollar-prefixed delimiter literally with nothing inside the
+  # braces in a comment here, even as an example — Backstage's templater
+  # still tries to evaluate it as a real, empty expression and fails.)
   goTemplate: true
   generators:
     - pullRequest:
