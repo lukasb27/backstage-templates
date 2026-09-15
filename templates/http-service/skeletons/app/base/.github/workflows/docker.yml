@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
   packages: write
+  # Needed by the "Label PR as preview" step below: gh pr edit --add-label
+  # and gh label create need pull-requests:write; the pending status POST
+  # needs statuses:write.
+  pull-requests: write
+  statuses: write
 
 jobs:
   docker:
@@ -65,3 +70,33 @@ jobs:
           push: true
           tags: ${{ steps.meta-integ-tests.outputs.tags }}
           labels: ${{ steps.meta-integ-tests.outputs.labels }}
+
+      # Signals the previews ApplicationSet's pullRequest generator (filtered
+      # on this exact label) that both images have actually finished
+      # pushing — replaces ephemeral-env.yml's inline image-wait polling
+      # loop, which no longer exists to race against a not-yet-pushed image.
+      - name: Label PR as preview
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number // empty')
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No open PR for branch $BRANCH (e.g. a push to main) — nothing to label."
+            exit 0
+          fi
+
+          gh label create preview \
+            --color 0E8A16 \
+            --description "Images pushed; ready for an ephemeral preview environment" \
+            --force
+          gh pr edit "$PR_NUMBER" --add-label preview
+
+          # Deleting ephemeral-env.yml also deletes its pending/failure status
+          # posts against kubernetes/integration-tests — not a required check,
+          # but losing the visibility entirely is worth one extra call here.
+          gh api "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=pending \
+            -f context='kubernetes/integration-tests' \
+            -f description='Waiting for the ephemeral environment to become ready' \
+            --silent
