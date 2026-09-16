@@ -24,6 +24,7 @@ readable directly here:
 | [docs/argocd-notifications-gate-adr.md](docs/argocd-notifications-gate-adr.md) | Why the integration-test merge gate stays in-cluster rather than moving to Argo CD Notifications, and the fork-PR security gap this closed along the way |
 | [docs/claude-review-and-triage-adr.md](docs/claude-review-and-triage-adr.md) | The label-triggered Claude PR review and issue triage workflows shipped in the skeleton, and the `claude-code-action` config traps found running them live |
 | [docs/orphan-detector-plugin-adr.md](docs/orphan-detector-plugin-adr.md) | The `stale-environment-finder` Backstage plugin — what shipped (Argo-vs-PR-state detection) and what didn't (GHCR-orphan detection) |
+| [docs/argocd-applicationset-migration-adr.md](docs/argocd-applicationset-migration-adr.md) | Why ephemeral per-PR environments moved from a CI-git-push mechanism to a per-service `ApplicationSet`, and the `template-version: v1` (legacy) vs `v2`+ split this left behind |
 
 ## What the template actually creates
 
@@ -45,11 +46,14 @@ in order (see [`template.yaml`](templates/http-service/template.yaml)):
 5. Registers the new repo in the Backstage catalog and notifies the owner.
 
 From there, every PR the new service opens builds and pushes two images to
-GHCR, stands up a namespaced, self-cleaning ephemeral Argo CD environment via
-this repo's [`ephemeral-env.yml`](.github/workflows/ephemeral-env.yml)
-reusable workflow (called by version, e.g. `@v1`), and runs its integration
-tests against the real deployed Service — see
-[docs/architecture.md](docs/architecture.md) for the full sequence diagram.
+GHCR, then a per-service Argo CD `ApplicationSet` (delivered once, at scaffold
+time, alongside the persistent `Application`) stands up a namespaced,
+self-cleaning ephemeral environment pinned to that PR's exact commit, and runs
+its integration tests against the real deployed Service — see
+[docs/architecture.md](docs/architecture.md) for the full sequence diagram,
+and [the ApplicationSet migration ADR](docs/argocd-applicationset-migration-adr.md)
+for how this replaced an earlier CI-git-push mechanism (`template-version: v1`,
+now legacy — only `lukas-test` still runs on it).
 
 ## Repository layout
 
@@ -59,11 +63,10 @@ templates/http-service/
   skeletons/
     app/base/                 # language-agnostic: CI scaffolding, k8s/, docs/, CODEOWNERS, ...
     app/languages/python/     # FastAPI app code, Dockerfile, poetry config
-    control/                  # the persistent Argo CD Application, templated per service
+    control/                  # the persistent Application + previews ApplicationSet, templated per service
 scripts/verify_template.py   # static checks — see below
 docs/                        # architecture + ADRs, rendered as TechDocs
 .github/workflows/
-  ephemeral-env.yml           # reusable workflow every scaffolded service's CI calls
   verify-template.yml         # runs verify_template.py + the python skeleton's own tests on PRs
 ```
 
